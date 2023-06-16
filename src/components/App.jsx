@@ -1,17 +1,15 @@
 import React, { Component } from 'react';
-import { ToastContainer } from 'react-toastify';
-import { toast } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import * as API from './services/api';
 import GlobalStyles from './GlobalStyles';
 import Searchbar from './Searchbar';
 import ImageGallery from './ImageGallery';
 import Modal from './Modal';
 import Button from './Button';
 import Notification from './Notification';
-import 'react-toastify/dist/ReactToastify.css';
-import * as API from './services/api';
 import { SearchApp } from './App.styled';
 import { ThreeDots } from 'react-loader-spinner';
-
 
 export default class App extends Component {
   state = {
@@ -29,54 +27,32 @@ export default class App extends Component {
   async componentDidUpdate(_, prevState) {
     const { searchQuery, page } = this.state;
 
-    if (prevState.searchQuery !== searchQuery) {
+    if (prevState.searchQuery !== searchQuery || (prevState.page !== page && page !== 1)) {
       this.setState({ isLoading: true });
+
       try {
         const response = await API.fetchImagesWithQuery(searchQuery, page);
         const { hits, total } = response.data;
+
         if (hits.length === 0) {
-          toast.error('Nothing found for your requestо', {
-            icon: '👻',
-          });
+          toast.error('Nothing found for your request', { icon: '👻' });
           return;
         }
-        const imagesData = hits.map(image => {
-          return {
-            id: image.id,
-            webformatURL: image.webformatURL,
-            largeImageURL: image.largeImageURL,
-            tags: image.tags,
-          };
-        });
-        this.setState({
+
+        const imagesData = hits.map(image => ({
+          id: image.id,
+          webformatURL: image.webformatURL,
+          largeImageURL: image.largeImageURL,
+          tags: image.tags,
+        }));
+
+        const shouldReplaceImages = prevState.searchQuery !== searchQuery;
+
+        this.setState(prevState => ({
           searchQuery,
-          images: imagesData,
+          images: shouldReplaceImages ? imagesData : [...prevState.images, ...imagesData],
           totalImages: total,
           imgOnRequest: hits.length,
-        });
-      } catch (error) {
-        this.setState({ error });
-      } finally {
-        this.setState({ isLoading: false });
-      }
-    }
-
-    if (prevState.page !== page && page !== 1) {
-      this.setState({ isLoading: true });
-      try {
-        const response = await API.fetchImagesWithQuery(searchQuery, page);
-        const { hits } = response.data;
-        const imagesData = hits.map(image => {
-          return {
-            id: image.id,
-            webformatURL: image.webformatURL,
-            largeImageURL: image.largeImageURL,
-            tags: image.tags,
-          };
-        });
-        this.setState(({ images, imgOnRequest }) => ({
-          images: [...images, ...imagesData],
-          imgOnRequest: imgOnRequest + imagesData.length,
         }));
       } catch (error) {
         this.setState({ error });
@@ -86,11 +62,11 @@ export default class App extends Component {
     }
   }
 
-  getSearchName = searchQuery => {
+  handleSearch = searchQuery => {
     this.setState({ searchQuery, page: 1, imgOnRequest: 0, images: [] });
   };
 
-  onImageClick = event => {
+  handleImageClick = event => {
     const { name, alt } = event.target;
     this.setState({
       largeImgLink: name,
@@ -98,14 +74,14 @@ export default class App extends Component {
     });
   };
 
-  onCloseModal = () => {
-    this.setState({ largeImgLink: null, imgAlt: null });
-  };
-
-  onLoadMoreClick = () => {
+  handleLoadMoreClick = () => {
     this.setState(prevState => ({
       page: prevState.page + 1,
     }));
+  };
+
+  handleCloseModal = () => {
+    this.setState({ largeImgLink: null, imgAlt: null });
   };
 
   render() {
@@ -117,24 +93,20 @@ export default class App extends Component {
       imgOnRequest,
       totalImages,
     } = this.state;
+
     return (
       <SearchApp>
-        <Searchbar onSubmit={this.getSearchName} />
+        <Searchbar onSubmit={this.handleSearch} />
         {images.length > 0 && (
-          <ImageGallery items={images} onImgClick={this.onImageClick} />
+          <ImageGallery items={images} onImgClick={this.handleImageClick} />
         )}
         {largeImgLink && (
-          <Modal
-            alt={imgAlt}
-            url={largeImgLink}
-            closeModal={this.onCloseModal}
-          />
+          <Modal alt={imgAlt} url={largeImgLink} closeModal={this.handleCloseModal} />
         )}
         {imgOnRequest >= 12 && imgOnRequest < totalImages && !isLoading && (
-          <Button onClick={this.onLoadMoreClick} />
+          <Button onClick={this.handleLoadMoreClick} />
         )}
-        {isLoading && <ThreeDots color="#3f51b5" />}
-        {imgOnRequest > 1 && imgOnRequest === totalImages && (
+        {isLoading ? <ThreeDots color="#3f51b5" /> : imgOnRequest > 1 && imgOnRequest === totalImages && (
           <Notification>Photos are finished saving...</Notification>
         )}
         <ToastContainer autoClose={2000} />
